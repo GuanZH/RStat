@@ -37,3 +37,5 @@ legend(4,1000,legend=c("num","poisson"),col=1:2,pch="0")
 ```
 
 And we see the difference.
+
+We add this to Rstudio for test.

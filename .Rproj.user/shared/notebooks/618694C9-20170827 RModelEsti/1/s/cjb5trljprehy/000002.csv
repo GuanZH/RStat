@@ -1,0 +1,6 @@
+"0","num=c(rep(0:5,c(1532,581,179,41,10,4)))"
+"0","lambda = mean(num)"
+"0","k=0:5"
+"0","ppois=dpois(k,lambda)"
+"0","poisnum=ppois*length(num)"
+"0","plot(k,poisnum,ylim=c(0,1600))"
