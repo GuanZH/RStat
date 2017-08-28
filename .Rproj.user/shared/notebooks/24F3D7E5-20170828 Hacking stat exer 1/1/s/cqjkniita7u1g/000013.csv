@@ -1,5 +1,0 @@
-"0","hist.cum.sum <- hist(rnorm(10000))
-hist.cum.sum$counts <- cumsum(hist.cum.sum$counts)
-plot(hist.cum.sum)
-"
-"0","curve(pnorm(x, mean=0, sd =1), add=TRUE)"

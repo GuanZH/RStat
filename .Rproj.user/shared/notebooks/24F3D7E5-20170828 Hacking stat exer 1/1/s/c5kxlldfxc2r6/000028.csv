@@ -1,1 +1,0 @@
-"0","lines(interval.gamma,dgamma(interval.gamma,shape=5,scale=0.5),col=""green"")"

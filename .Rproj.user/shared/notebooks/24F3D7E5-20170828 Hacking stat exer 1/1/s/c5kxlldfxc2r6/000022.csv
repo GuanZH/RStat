@@ -1,3 +1,0 @@
-"0","#Gamma"
-"0","interval.gamma<-seq(0, 20, 0.01)"
-"0","plot(interval.gamma,dgamma(interval.gamma,shape=1,scale=2))"

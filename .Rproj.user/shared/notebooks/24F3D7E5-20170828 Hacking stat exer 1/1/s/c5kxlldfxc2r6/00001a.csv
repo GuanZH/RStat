@@ -1,3 +1,0 @@
-"0","#Exponential"
-"0","interval.exp <- seq(0,10,0.01)"
-"0","plot(interval.exp, dexp(interval.exp, rate=0.5))"

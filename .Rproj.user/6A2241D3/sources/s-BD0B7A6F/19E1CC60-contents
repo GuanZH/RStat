@@ -8,8 +8,12 @@ output:
 ## Hacking statistics Exercises Part 1
 
 #### Exercise 1
-Use rnorm() to generate 100 points, then plot those points in an histogram.
+Use rnorm() to generate 100 points, then plot those points in an histogram.For normal distribution, there is two parameters, which is $N(\mu, \sigma^2)$
+The normal density equation:
 
+$$
+f(x)=\frac{1}{\sqrt{2\pi}\sigma}e^{-\frac{(x-\mu)^2}{2\sigma^2}}
+$$
 
 ```{r}
 x <- rnorm(100)
@@ -57,7 +61,7 @@ curve(pnorm(x, mean=0, sd =1), add=TRUE)
 
 #### Exercise 5
 Let's see other distribution, not the normal. 
-
+For exponential distribution, \lambda is the only parameter. 
 ```{r}
 #Exponential
 
