@@ -1,11 +1,11 @@
 ---
 title: "R Notebook"
 output:
-  html_document:
-    df_print: paged
   pdf_document: default
   html_notebook:
     fig_caption: yes
+  html_document:
+    df_print: paged
 ---
 
 In order to estimate the parameters of model, two methods are usually used. One is point estimation, and the other is interval estimates. The difference is that Point estimation directly give out the parameter we want, but not the Confidence interval. On the contrary, interval estimates give out the confidence interval. 
@@ -23,7 +23,8 @@ The data table
 
 
 
-```{r Test for moment method, echo=TRUE}
+
+```r
 num=c(rep(0:5,c(1532,581,179,41,10,4)))
 lambda = mean(num)
 
@@ -34,10 +35,11 @@ plot(k,poisnum,ylim=c(0,1600))
 samplenum=as.vector(table(num))
 points(k,samplenum,type="p",col=2)
 legend(4,1000,legend=c("num","poisson"),col=1:2,pch="0")
-
 ```
 
-Given that No. is poison distribution, which $\lambda$ = `r lambda`, we compare poison data and real data.
+![](20170827_RModelEsti_files/figure-latex/Test for moment method-1.pdf)<!-- --> 
+
+Given that No. is poison distribution, which $\lambda$ = 0.4780571, we compare poison data and real data.
 
 And we see the difference.
 
