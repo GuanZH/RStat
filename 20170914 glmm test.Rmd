@@ -1,0 +1,34 @@
+---
+title: "GLMM model"
+author: "Gzh"
+date: "9/14/2017"
+output: html_document
+---
+使用glmm package进行GLMM分析 
+
+定义：glmm package是允许具有规范连接的广义线性混合模型的似然函数。glmm采用最大化Monte Carlo似然估计(MCLA)来估计固定因子和方差成分的最大似然Monte Carlo maximum likelihood estimates (MCMLEs)。此外，值，梯度向量，MCLA的Hessian矩阵都将在MCMLEs中计算。glmm的基础是MCLA，首先由Geyer(1990)提出，用于估计非正态密度的似然数。MCLA被Geyer and Thompson (1992)用于估计具有随机效应的模型的正态密度的似然函数
+
+对于glmm模型的组成部分包括
+1 响应变量，响应变量的类型和分布状况决定了连接函数
+
+2 至少一个变量作为随机因子，最好是名义变量
+
+3 向量需要用于定义固定效应的矩阵，可以是因子变量或者连续数字变量
+
+1、2类型的向量是必须的，最后一个类型的是可选的。即glmm模型的最小需求是一个响应变量和一个随机因子。
+
+```{r message=TRUE, warning=TRUE, paged.print=TRUE}
+library("glmm")
+data("salamander")
+str(salamander)
+summary(salamander)
+
+```
+
+
+使用案例数据salamanders，mate代表蝾螈是否交配，1代表成功交配，0代表未交配；Cross描述了雌性和雄性的类型，例如W/R代表白边雌性和粗糙雄性交叉；female包括了雌性蝾螈的数量；male表示雄性蝾螈的数量。
+
+
+拟合模型
+根据Karim and Zeger (1992)的模型A，
+我们设mate为响应变量，cross为固定效应变量，female和male为随机因子，使用glmm的logit连接函数。我们会有4个固定因子参数(βR/R, βR/W , βW/R, βW/W )。似乎在雌性之间和雄性之间都有可能发生变化。即，一些雌性比雄性更愿意交配，我们希望模型可以反映出个体蝾螈的意愿。我们通过将雌性和雄性数量作为随机因子整合我们的思想进入模型。我们相信雌性蝾螈的随机效应是服从i.i.d分布的$N(0, νF)$，这里νF是一个未知参数。相似的，雄性的随机效应也是如此$N(0, νM)$，最后，我们相信雌性和雄性的随机效应相互独立。
