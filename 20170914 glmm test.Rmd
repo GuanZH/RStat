@@ -32,3 +32,35 @@ summary(salamander)
 拟合模型
 根据Karim and Zeger (1992)的模型A，
 我们设mate为响应变量，cross为固定效应变量，female和male为随机因子，使用glmm的logit连接函数。我们会有4个固定因子参数(βR/R, βR/W , βW/R, βW/W )。似乎在雌性之间和雄性之间都有可能发生变化。即，一些雌性比雄性更愿意交配，我们希望模型可以反映出个体蝾螈的意愿。我们通过将雌性和雄性数量作为随机因子整合我们的思想进入模型。我们相信雌性蝾螈的随机效应是服从i.i.d分布的$N(0, νF)$，这里νF是一个未知参数。相似的，雄性的随机效应也是如此$N(0, νM)$，最后，我们相信雌性和雄性的随机效应相互独立。
+
+
+```{r}
+set.seed(1234)
+ptm<-proc.time()
+sal <- glmm(Mate ~ 0 + Cross, random = list(~ 0 + Female,
+~ 0 + Male), varcomps.names = c("F", "M"), data = salamander,family.glmm = bernoulli.glmm, m = 10^4, debug = TRUE)
+# 模型 mate~0+cross 代表了cross不同因子对于mate的影响，随机list中，将雌性和雄性分别表示随机效应，0+female表示随机效应的中心放在0上，一般都会期望随机效应的均值为0。varcomps names 允许我们对方差成分命名，比如我们在随机效应中 先female后male，所以方差名字 先F后M。family glmm选择响应变量的类型，本案例中mate为二值变量，所以为bernoulli，如果是计数的应该用poisson.glmm。m是制定了monte carlo样本大小，原则是该值越大，则MCLA（monte carlo likelihood approximation）越精确，估计值也越精确。 
+proc.time() - ptm
+# 计算模型运行时间
+summary(sal)
+```
+
+对这个模型的结果解释主要放在固定效应和随机效应的解释。随机效应的方差成分估计同样显示出随机因子F和M对于glm模型都有显著影响，即随机因子F和M都显著影响了模型的方差。
+
+利用confint计算估计参数值得置信区间95%
+```{r}
+confint(sal) # 默认95%
+confint(sal, level = .9) # 90%
+confint(sal, level = .99) # 99%
+confint(sal,level=.9,c(1,3)) # 选择特定变量
+confint(sal,level=.9,c("CrossR/R","CrossW/R")) # 选择特定变量
+confint(sal,level=.93,c(5))
+confint(sal,level=.93,c("F"))
+
+```
+
+```{r}
+mcse(sal) # 观察monte carlo法标准误
+se(sal) # 利用点估计法的标准误，显然monte carlo的标准误更小
+```
+
