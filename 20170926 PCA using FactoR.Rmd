@@ -1,0 +1,92 @@
+---
+title: "PCA using FactoR"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+For PCA analysis, we use FactoMineR package
+
+```{r}
+library(FactoMineR)
+data("decathlon")
+length(decathlon)
+?PCA
+```
+解释PCA参数设置
+"PCA(X, scale.unit = TRUE, ncp = 5, ind.sup = NULL, 
+    quanti.sup = NULL, quali.sup = NULL, row.w =NULL,
+    col.w = NULL, graph = TRUE, axes = c(1,2))"
+    
+
+X 是数据表，代表了n行p列数据（数值型变量）
+ncp	是结果中返回的维数，默认是5
+scale.unit	默认为true，表示数据被标准化 “a boolean, if TRUE (value set by default) then data are scaled to unit variance”
+ind.sup	一个向量表示个体编号或者index
+quanti.sup	一个向量表示定量补充变量
+quali.sup	一个向量表示分类补充变量
+row.w	可选的表示样本权重
+col.w	可选表示变量权重
+graph	默认true表示自动绘图
+axes	默认2个维度的绘图
+
+```{r}
+res <- PCA(decathlon[,1:10])
+res$eig
+```
+
+根据结果，首先判断主成分特征值（eigenvalue）的分布，以及每个主成分对于方差的贡献率（percentage of variance）。
+```{r}
+# 其次看样本的贡献率。
+
+res$ind$dist # 个体与绘图中心的距离
+res$ind$cos2 # 个体在不同主成分上的表现质量，如果是保留2个主成分，则是 dim1的值加上dim2的值
+
+
+```
+
+在PCA分析中，最重要的是变量对于主成分的影响
+```{r}
+res$var
+```
+coord 是该变量在主成分上的值，cor是该变量对于主成分的贡献，cos2是该变量在主成分上的表现质量。
+
+接下来加入补充变量
+```{r}
+res.pca <- PCA(decathlon, quanti.sup = 11:12, quali.sup=13)
+summary(res.pca, nbelements = Inf  )
+```
+结果中Rank和Points出现在因子图上，分类变量出现在个体图上，表示了不同分类样本的重心。
+从结果来看，补充连续变量并没有对主成分有所贡献。
+对于分类补充变量，v-test 服从高斯分布，也就是说 |v-test| > 1.96 表示这个分类在该主成分的坐标显著不同于0。
+
+
+如果要看每个变量和主成分的相关性，用dimdesc，结果显示的是p值显著的变量。
+```{r}
+dimdesc(res.pca)
+dimdesc(res.pca, axes = c(1,3)) # 选择pc1和pc3
+dimdesc(res.pca, proba = 0.2) # 设置proba = 0.2，意味着保留p值小于0.2，而不是默认的0.05
+```
+
+```{r}
+
+plot(res.pca, cex = 0.8) # 调整字体到0.8
+plot(res.pca, cex = 0.8, invisible = "quali") # 隐藏quali变量
+plot(res.pca, cex = 0.8, invisible = "quali", habillage = "Competition") # 标记Competition不同颜色
+
+plotellipses(res.pca) # 图中的圈表示95%的置信区间中新样本落入的范围
+
+plot(res.pca, cex = 0.8, choix = "ind",  invisible = "quali", habillage = "Competition", axes = 3:4) # 用axes调整显示的主成分，比如看pc3和pc4上样本分布
+
+plot(res.pca, cex = 0.8, choix = "var", axes = 3:4) # 看变量在pc3和pc4上的分布
+
+plot(res.pca, cex = 0.8, habillage = 13, select = "cos2 0.7") # 选择样本在主成分上表现值超过0.7的绘图
+plot(res.pca, cex = 0.8, habillage = 13, select = "contrib 5") # 选择对主成分贡献最大的5个样本画出来
+plot(res.pca, cex = 0.8, habillage = 13, select = c("Clay","Karpov")) # 选择Clay 和Karpov画出来
+
+plot(res.pca, choix='var', select = "contrib 5")  # 画出对主成分贡献最大的5个变量
+
+plot(res.pca, cex =0.8, habillage = 13, select = "cos2 0.7", title = "Decathlon", cex.main=1.1, cex.axis =0.9, shadow=TRUE, auto="y") # auto = y 表示把标记的名字自动不要重叠
+
+```
+
