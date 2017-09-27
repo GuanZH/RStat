@@ -1,0 +1,189 @@
+---
+title: "dplyr tutorial"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+dplyr 包主要是由6个基本函数构成，filter, select, arrange, mutate, summarise, group_by。
+
+```{r}
+library(dplyr)
+
+library("hflights")
+# explore data
+data(hflights)
+head(hflights)
+
+# tbl_df 转化数据为data frame
+
+flights <- tbl_df(hflights)
+
+# printing only shows 10 rows and as many columns as can fit on your screen
+flights
+
+# 显示指定的前20行数据
+print(flights, n=20)
+
+# convert to a normal data frame to see all of the columns
+data.frame(head(flights))
+
+```
+接下来是dplyr
+```{r}
+# 如果只想看1月1日的航班，基本模式如下
+flights[flights$Month==1 & flights$DayofMonth==1, ]
+
+# dplyr的方法是使用filter函数
+filter(flights, Month==1, DayofMonth==1) # month==1 和 dayofmonth==1 之间逗号和AND代表相同意思
+
+filter(flights, UniqueCarrier=="AA" | UniqueCarrier=="UA") #  | 是或者的意思，选择航班AA或者UA
+filter(flights, UniqueCarrier %in% c("AA", "UA")) # 同上，使用%in% 代表了另一种方法
+
+
+# 如果要选择特定的变量，如 DepTime, ArrTime, and FlightNum，R基本方法如下
+
+flights[, c("DepTime", "ArrTime", "FlightNum")]
+
+# dplyr 使用select函数
+select(flights, DepTime, ArrTime, FlightNum)
+# 使用：表示选择从某个变量到某个变量，contains表示变量中含有字符“taxi”和“delay”的变量
+
+select(flights, Year:DayofMonth, contains("Taxi"), contains("Delay"))
+
+```
+
+dplyr的好处是连接操作链，用pipe 标示
+```{r}
+# 选择flights中uniquecarrier和depdelay2个变量，同时depdelay超过60的数据
+
+filter(select(flights, UniqueCarrier, DepDelay), DepDelay > 60)
+
+# 用链式方法
+
+flights %>%
+    select(UniqueCarrier, DepDelay) %>%
+    filter(DepDelay > 60)
+
+# create two vectors and calculate Euclidian distance between them
+x1 <- 1:5; x2 <- 2:6
+sqrt(sum((x1-x2)^2))
+# chaining method
+(x1-x2)^2 %>% sum() %>% sqrt()
+
+
+# 如果要对数据进行排序，比如选择uniquecarrier和depdelay2个变量，并按照depdelay排序
+
+flights[order(flights$DepDelay), c("UniqueCarrier", "DepDelay")]
+# dplyr 使用arrange函数进行排序
+
+flights %>%
+    select(UniqueCarrier, DepDelay) %>% # 选择Uniquecarrier和depdelay2个变量
+    arrange(DepDelay) # 按照depdelay排序
+
+flights %>%
+    select(UniqueCarrier, DepDelay) %>%
+    arrange(desc(DepDelay)) # 同上，逆序排列
+
+# 使用mutate函数增加新的变量
+
+# R 基础方法
+flights$Speed <- flights$Distance / flights$AirTime*60
+flights[, c("Distance", "AirTime", "Speed")]
+# dplyr approach (prints the new variable but does not store it)
+flights %>%
+    select(Distance, AirTime) %>%
+    mutate(Speed = Distance/AirTime*60)
+
+flights <- flights %>% mutate(Speed = Distance/AirTime*60)
+
+```
+
+用summarise函数浏览数据
+
+```{r}
+
+# 计算每个航班晚点的平均时长
+head(with(flights, tapply(ArrDelay, Dest, mean, na.rm=TRUE)))
+head(aggregate(ArrDelay ~ Dest, flights, mean))
+# dplyr方法，创建一个按照dest分类的表格，然后对每个单位进行平均值计算
+
+flights %>%
+    group_by(Dest) %>% # 按照dest归类
+    summarise(avg_delay = mean(ArrDelay, na.rm=TRUE)) # 用新变量avg_delay 计算arredlay 平均值
+
+flights %>%
+    group_by(UniqueCarrier) %>% # 按照Uniquecarrier归类
+    summarise_each(funs(mean), Cancelled, Diverted) # 分别计算cancelled和diverted2个变量的均值
+
+flights %>%
+    group_by(UniqueCarrier) %>% # 按照Uniquecarrier归类
+    summarise_each(funs(min(., na.rm=TRUE), max(., na.rm=TRUE)), matches("Delay")) # 分别计算含有delay变量的最小值，最大值
+
+# for each day of the year, count the total number of flights and sort in descending order
+flights %>%
+    group_by(Month, DayofMonth) %>% # 按照每年每月每天归类
+    summarise(flight_count = n()) %>% # 计算总的航班数，生成新的航班变量flight_count
+    arrange(desc(flight_count)) # 逆向排序
+
+flights %>%
+    group_by(Month, DayofMonth) %>% # 按照每年每月每天归类
+    tally(sort = TRUE) # 同上，tally是简化写法
+
+# for each destination, count the total number of flights and the number of distinct planes that flew there
+flights %>%
+    group_by(Dest) %>% # 按照dest归类
+    summarise(flight_count = n(), plane_count = n_distinct(TailNum)) # 计算总的航班数和不同飞机的总数
+
+# for each destination, show the number of cancelled and not cancelled flights
+flights %>%
+    group_by(Dest) %>% # 按照dest归类
+    select(Cancelled) %>% # 选择cancelled
+    table() %>% # 根据dest 把cancelled 总结一下
+    head()
+
+# for each carrier, calculate which two days of the year they had their longest departure delays
+# note: smallest (not largest) value is ranked as 1, so you have to use `desc` to rank by largest value
+flights %>%
+    group_by(UniqueCarrier) %>% # 根据uniquecarrier归类
+    select(Month, DayofMonth, DepDelay) %>% # 选择month， dayofmonth， depdelay变量
+    filter(min_rank(desc(DepDelay)) <= 2) %>% # 逆序排列depdelay，选择每个uniquecarrier 最小的2个
+    arrange(UniqueCarrier, desc(DepDelay)) # 按照uniqueCarrier，对depdelay逆序排列
+
+# `top_n`函数简化写法
+flights %>%
+    group_by(UniqueCarrier) %>% # 根据uniquecarrier归类
+    select(Month, DayofMonth, DepDelay) %>% # 选择month， dayofmonth， depdelay变量
+    top_n(2) %>%  # 选择头2个
+    arrange(UniqueCarrier, desc(DepDelay))
+
+
+# for each month, calculate the number of flights and the change from the previous month
+flights %>% 
+    group_by(Month) %>% # 按照每个月归类
+    summarise(flight_count = n()) %>% # 总结每个月的总航班数
+    mutate(change = flight_count - lag(flight_count)) # 计算这个月和上个月的航班变化，生成change变量
+
+# 简化写法tally
+flights %>%
+    group_by(Month) %>%
+    tally() %>%
+    mutate(change = n - lag(n))
+
+
+```
+其他一些相关的变量
+
+```{r}
+flights %>% sample_n(5) # 随机取5行，不放回
+
+flights %>% sample_n(5) 
+flights %>% sample_frac(0.25, replace=TRUE) # 随机取25%的样本，有放回替换
+
+glimpse(flights) # 代替str
+```
+
+
+
+
+
