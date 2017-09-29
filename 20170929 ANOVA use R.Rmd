@@ -1,0 +1,136 @@
+---
+title: "One-way ANOVA in R"
+output: html_notebook
+---
+
+```{r}
+library(ggplot2)
+library("lsr")
+library("psych")
+library(car)
+library("tidyverse")
+library("dunn.test")
+library("BayesFactor")
+library(scales)
+library(knitr)
+library("kableExtra")
+
+
+```
+载入数据载入包
+```{r}
+tyre<-read.csv("tyre.csv")
+str(tyre)
+attach(tyre) # 转成后台数据
+
+boxplot(Mileage~Brands, main="Fig.-1: Boxplot of Mileage of Four Brands of Tyre", col= rainbow(4))
+# 普通图不好看
+
+ggplot(tyre, aes(Brands,Mileage))+geom_boxplot(aes(col=Brands))+labs(title="Boxplot of Mileage of Four Brands of Tyre")
+# ggplot的图略好，图上CEAT 有一个outlier的点，用基本函数看一下信息
+
+boxplot.stats(Mileage[Brands=="CEAT"])
+
+# 41.05 是这个outlier了，置信区间是 33.55 – 36.01，基本信息如此，后面如果发现outlier问题大，可以去除
+```
+下一步进行anova分析
+```{r}
+
+model1<- aov(Mileage~Brands)
+summary(model1)
+# 结果差异很大，拒绝了因子均值相等的零假设，使用tukey HSD多重比较进行检验
+TukeyHSD(model1, conf.level = 0.99)
+
+# 这个检验结果显示出4个品牌在0.01显著性的差异，diff是均值差异，lwr和upr分别是低和高的99%置信区间，p adj是调整后的p值，4个品牌有6个配对，除了CEAT和Apollo的配对差异不显著外，其他均是显著的。具体比如，Bridgestone-Apollo的配对有-3.019的差异，代表Apollo要比Bridgestone高，并且是显著的
+# 使用plot看tukey检验结果
+plot(TukeyHSD(model1, conf.level = 0.99),las=1, col = "red")
+```
+另一个方法用来看 因子均值的是plotmeans()同时显示出95%置信区间。
+
+```{r}
+
+library(gplots)
+plotmeans(Mileage~Brands, main="Fig.-3: Mean Plot with 95% Confidence Interval", ylab = "Mileage run ('000 miles)", xlab = "Brands of Tyre")
+
+```
+
+模型分析完后需要进行诊断
+```{r}
+par(mfrow=c(2,2))
+plot(model1)
+```
+
+第一个图残差对模型预测，残差不能有特殊的模式分布，这个比较不错；第二个是标准化残差的qq正态图，也符合正态。第三个图Scale-Location表示标准残差绝对值开方后的值对于模型预测值，曲线平滑后越平代表了发生homoscedasticity的可能性越小。homoscedasticity 表示回归线的方差与预测变量的方差相同。
+最后一个图是标准残差在因子上的分布，可以通过该图分析是否某个点影响了标准残差分布。本例子中没有点是溢出点，所以不用排除任何样本。
+
+```{r}
+# 接下来检验残差的正态性
+uhat <- resid(model1)
+shapiro.test(uhat)
+# 结果正态
+
+# 检验方差齐次性
+bartlett.test(Mileage~Brands)
+levene.test(Mileage~Brands)
+# 结果都是显示方差是齐次的
+```
+
+另一种方法分析
+```{r}
+# 描述数据
+describe(tyre)
+describeBy(tyre$Mileage,group = tyre$Brand, mat = TRUE, digits = 2)
+
+# 把箱线图变成横向的
+boxplot(tyre$Mileage~tyre$Brands, main="Boxplot comparing Mileage of Four Brands of Tyre", col= rainbow(4), horizontal = TRUE)
+
+```
+
+```{r}
+# describeBy(tyre$Mileage,group = tyre$Brand, mat = TRUE) %>% # 构建一个dataframe
+#  select(Brand=group1, N=n, Mean=mean, SD=sd, Median=median, Min=min, Max=max, Skew=skew, Kurtosis=kurtosis, SEM=se) %>% 
+#  kable(align=c("lrrrrrrrr"), digits=2, row.names = FALSE, caption="Tire Mileage Brand Descriptive Statistics") %>% 
+#  kable_styling(bootstrap_options=c("bordered", "responsive","striped"), full_width = FALSE)
+# 画一个带有显著性标记的图
+ggplot(tyre, aes(reorder(Brands,Mileage),Mileage,fill=Brands))+
+# ggplot(tyre, aes(Brands,Mileage,fill=Brands))+ # if you want to leave them alphabetic
+  geom_jitter(colour = "dark gray",width=.1) +
+  stat_boxplot(geom ='errorbar',width = 0.4) +
+  geom_boxplot()+
+  labs(title="Boxplot, dotplot and SEM plot of mileage for four brands of tyres", 
+       x = "Brands (sorted)",
+       y = "Mileage (in thousands)",
+       subtitle ="Gray dots=sample data points, Black dot=outlier, Blue dot=mean, Red=99% confidence interval",
+       caption = "Data from https://datascienceplus.com/one-way-anova-in-r/") +
+  guides(fill=FALSE) +
+  stat_summary(fun.data = "mean_cl_normal", colour = "red", size = 1.5, fun.args = list(conf.int=.99)) +
+  stat_summary(geom="point", fun.y=mean, color="blue") +
+  theme_bw()
+
+```
+
+```{r}
+# 先进行anova分析模型构建
+tyres.aov<- aov(Mileage~Brands, tyre)
+# 多重比较检验用R基本函数
+pairwise.t.test(tyre$Mileage,tyre$Brands,p.adjust.method = "none")
+# 多重比较检验用lsr
+posthocPairwiseT(tyres.aov,p.adjust.method = "none")
+
+
+TukeyHSD(tyres.aov, conf.level = 0.95)
+TukeyHSD(tyres.aov, conf.level = 0.99)
+```
+
+
+```{r}
+# 用基本方法进行多重比较检验，用bonferroni矫正p值
+pairwise.t.test(tyre$Mileage,tyre$Brands,p.adjust.method = "bonferroni")
+pairwise.t.test(tyre$Mileage,tyre$Brands,p.adjust.method = "holm")
+posthocPairwiseT(tyres.aov)
+
+```
+
+
+
+
