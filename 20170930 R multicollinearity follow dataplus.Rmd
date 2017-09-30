@@ -1,0 +1,69 @@
+---
+title: "Multicollinearity in R"
+output: html_notebook
+---
+
+线性回归模型中，变量之间的非共线性是基本假设。如果共线性很强，则参数会变得非常不确定，且参数的标准差会无限大。然而，现实中完美共线性是不存在的，更多的情况是有或强或弱的共线性，其结果是造成参数具有很大的协方差和方差，使估计的结果很难准确。因此，置信区间会变的很宽，也导致我们无法去除『零假设』。同时，变量系数的结果也不会显著，数据的微笑变化会导致参数估计值的巨大变化。
+
+在建立模式时，我们必须监测出共线性并去除，检验共线性有如下方法：
+最简单的是检验变量之间的相关性，如果高度相关，则共线性很强。然而，相关性对于共线性的检验是充分的但不是必要的。
+第二个简答的方法是估计多元回归模型，并小心诊断。模型的R2值可能很大，但是大多数p值却都不显著。
+第三，使用方差膨胀因子VIF检验，VIF值越大，则该变量的共线性越强。一般以VIF值为10，且变量系数的R2值为0.9以上，作为阈值。
+第四，最好的应对共线性办法是采用 Farrar-Glauber test (F-G test)。
+
+```{r}
+# 载入数据
+library(readxl)
+wagesmicrodata <- read_excel(file.choose(), sheet = "Data", skip = 0)
+View(wagesmicrodata)
+attach(wagesmicrodata)
+
+# 假设没有共线性时，使用该线性模型
+fit1<- lm(log(WAGE)~OCCUPATION+SECTOR+UNION+EDUCATION+EXPERIENCE+AGE+SEX+MARR+RACE+SOUTH)
+summary(fit1)
+
+```
+该模型R2值为0.31，F值为24.4，非常高，变量大多数没有达到显著水平。进一步使用plot诊断该模型
+```{r}
+par(mfrow=c(2,2))
+plot(fit1)
+```
+诊断图显示模型看上去不错，所以导致多数变量不显著的原因可能是共线性存在。
+首先使用相关性检验看变量关系。
+
+```{r}
+X<-wagesmicrodata[,3:12]
+library(GGally)
+ggpairs(X)
+```
+相关性矩阵现实所有变量之间的相关性并不是很高，除了age-experience的高相关性可能是共线性的主要来源。除此之外，还有experience – education, age – education和age – experience具有高度相关。
+```{r}
+library(corpcor)
+cor2pcor(cov(X))
+```
+下一步进行Farrar – Glauber Test
+使用‘mctest’包
+```{r}
+library(mctest)
+omcdiag(X,WAGE)
+# 总体共线性分析
+```
+标准行列式的值为0.0001，非常小。Chisquare检验值达到4833.5751，并且高度显著，意味着模型的共线性存在。
+```{r}
+imcdiag(X,WAGE)
+# 个体共线性检验
+```
+
+VIF，TOL和Wi表示了对于方差膨胀因子诊断结果，experience的VIF值5184.0939，age的645.6650和education的 231.1956，远远高出在该自由度5%显著性的理论值1.89774。因此可以判断共线性根源experience或age或education。
+进一步看所有变量之间相关系数t检验结果。
+```{r}
+library(ppcor)
+pcor(X, method = "pearson")
+```
+共线性补救工作，包括以下几种，比如主成分回归，领回归，逐步回归等。然而，就现在的案例而言，可以采用去除VIF值超过10的变法。
+```{r}
+fit2<- lm(log(WAGE)~OCCUPATION+SECTOR+UNION+EDUCATION+AGE+SEX+MARR+RACE+SOUTH)
+summary(fit3)
+vif(fit2)
+```
+
