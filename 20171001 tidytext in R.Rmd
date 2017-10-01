@@ -1,0 +1,118 @@
+---
+title: "tidytext package"
+output: html_notebook
+---
+
+用一个简单直观的包来进行文本分析
+
+```{r}
+library("janeaustenr")
+library(dplyr)
+library(stringr)
+
+
+original_books <- austen_books() %>%
+    group_by(book) %>%
+    mutate(linenumber = row_number(),
+           chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]",
+                                                   ignore_case = TRUE)))) %>%
+    ungroup()
+
+original_books
+
+```
+
+载入书后，做成每行一个分词的格式
+```{r}
+library("tidytext")
+tidy_books <- original_books %>%
+  unnest_tokens(word, text)
+
+tidy_books
+```
+
+目标格式形成后，去除掉终止词
+```{r}
+data("stop_words")
+cleaned_books <- tidy_books %>%
+  anti_join(stop_words)
+```
+
+
+数一下常见词
+```{r}
+cleaned_books %>%
+  count(word, sort = TRUE) 
+```
+
+用情感数据集分析情感词NRC，寻找出Emma最常见的开心词汇
+```{r}
+nrcjoy <- get_sentiments("nrc") %>%
+  filter(sentiment == "joy")
+
+tidy_books %>%
+  filter(book == "Emma") %>%
+  semi_join(nrcjoy) %>%
+  count(word, sort = TRUE)
+```
+
+或者检验每个小说中的情感变化，使用Bing
+```{r}
+library(tidyr)
+bing <- get_sentiments("bing")
+
+janeaustensentiment <- tidy_books %>%
+  inner_join(bing) %>%
+  count(book, index = linenumber %/% 80, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+library(ggplot2)
+
+ggplot(janeaustensentiment, aes(index, sentiment, fill = book)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  facet_wrap(~book, ncol = 2, scales = "free_x")
+
+```
+
+
+分析常见的表示正面和负面情感的词汇
+```{r}
+bing_word_counts <- tidy_books %>%
+  inner_join(bing) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts
+
+bing_word_counts %>%
+  filter(n > 150) %>%
+  mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n, fill = sentiment)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylab("Contribution to sentiment")
+
+```
+
+使用云词分析词汇是另一个简单方法
+```{r}
+library(wordcloud)
+
+cleaned_books %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+
+library(reshape2)
+
+tidy_books %>%
+  inner_join(bing) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("#F8766D", "#00BFC4"),
+                   max.words = 100)
+```
+
+
+
