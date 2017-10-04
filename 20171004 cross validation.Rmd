@@ -1,0 +1,155 @@
+---
+title: "Cross Validation in R"
+output: html_notebook
+---
+
+Cross-validation有时候也被称作rotation estimation,适用于评价统计分析结果如何产生一个独立数据集的技术。主要用于评价模型预测结果的时候。在模型预测的时候，一个模型通常是用给定的数据集（训练集）和一个用于测试的数据集（测试集）。CV的目的是给数据集定义为测试集，然后用训练集产生的模型进行测试。为了限制过拟合问题的产生，CV可以帮助理解模型对于测试集的反应情况。
+
+一次CV包括把数据分成2个集合，即训练集和测试集，为了减少模型方差，采用不同分割方法的多次CV可以组合起来用于估计一个最终的预测模型。传统的验证方法是70%的训练集和30%的测试集，使用CV来替代传统方法的原因主要是在现实条件下，可能没有足够的具有显著性的数据用于分割集合。该情况下，CV则能够发挥作用。
+
+K-Fold CV
+K Fold是最常用的CV方法，样本被分为K份，模型采用K-1份数据训练，然后用剩下的一份进行测试，如果K=n，样本量是n，时，则成为LOOCV方法，去除一个样本的CV法Leave One Out Cross Validation。这个方法具有较小偏差，计算量小，但是每一个fold可能高度相关。
+
+```{r}
+library("boot")
+require(boot)
+library(MASS)
+plot(speed~dist, data=cars, main = "Cars" ,
+xlab = "Stopping Distance", ylab = "Speed")
+```
+```{r}
+# 使用案例数据产生glm，然后分析CV对于误差的估计以及每个幂指数变化对于误差的影响
+
+glm.fit = glm(speed~dist, data=cars)
+degree=1:5
+cv.error5=rep(0,5)
+cv.test = cv.glm(cars, glm.fit, K=5)
+
+for(d in degree){
+glm.fit = glm(speed~poly(dist, d), data=cars)
+cv.error5[d] = cv.glm(cars,glm.fit,K=5)$delta[1]
+}
+plot(cv.error5~degree)
+cv.error5
+
+```
+可见该模型下d=2时，误差最小，所以最优模型是二次多项式。
+
+对于模型来说，训练集的效果要好于测试集。我们需要采用一些方法来预测out of sample 误差。CV是最简单的方法，
+
+这个模型集合中变量很多，所以要对变量进行筛选。
+
+```{r}
+library("caret")
+library(dplyr)
+data("cars", package = "caret")
+glimpse(cars)
+
+select(cars, -Doors, -Chevy, -sedan) %>%  # 去除掉Doors，chevy，sedan变量
+  lm(Price ~ Mileage + Cylinder + Cruise + Sound + Leather + Buick + Cadillac + Pontiac + Saab + Saturn + convertible + coupe + hatchback + wagon, data = .) # 对模型进行线性拟合
+library("modelr")
+# 使用modelr package进行CV测试
+cars_cv <- cars %>% 
+  select(-Doors, -Chevy, -sedan) %>% # 同上去除3个变量
+  crossv_kfold(10) # CV K-fold K = 10，把模型分10份
+cars_cv # 分割的数据集
+library(purrr)
+cars_cv %>% 
+  mutate(train = map(train, as_tibble)) %>% # 把每个train转化为dataframe，然后给定义变量train
+  mutate(model = map(train, ~ lm(Price ~ Mileage + Cylinder + Cruise + Sound + Leather + Buick + Cadillac + Pontiac + Saab + Saturn + convertible + coupe + hatchback + wagon,  data = .))) %>% # 对每个train，做线性回归拟合
+  mutate(rmse = map2_dbl(model, test, rmse)) %>%
+  select(.id, rmse)
+```
+```{r}
+
+# 该方法同上
+ten_fold <- function(x) {
+  x %>% 
+    mutate(model = map(train, ~ lm(Price ~ Mileage + Cylinder + Cruise + Sound + Leather + Buick + Cadillac + Pontiac + Saab + Saturn + convertible + coupe + hatchback + wagon, data = .))) %>%
+  mutate(rmse = map2_dbl(model, test, rmse)) %>%
+  select(.id, rmse)
+}
+
+```
+
+用mtcars数据集再试一下
+```{r}
+library(modelr)
+set.seed(1)  # Run to replicate this post
+folds <- crossv_kfold(mtcars, k = 5) # 把数据分成5份
+folds$test[[1]] # folds 测试集1中的样本行号
+folds$train[[1]] # 对应的训练集1中的样本行号
+```
+接下来对模型进行拟合
+```{r}
+lm(mpg~., data=mtcars) # 所有变量都被包括进去
+```
+
+```{r}
+library(dplyr)
+library(purrr)
+folds <- folds %>% 
+    mutate(model = map(train, ~ lm(mpg ~ ., data = .))) # 对folds里面5个训练集分别进行拟合，并放到新的变量model中
+folds 
+folds$model[[1]] %>% summary() # 比如看训练集1的模型1
+```
+
+获得模型后，对测试集进行预测 
+```{r}
+library(broom)
+folds %>% 
+    mutate(predicted = map2(model, test, ~ augment(.x, newdata = .y))) # 产生一个新的测试集结果的列predicted
+```
+
+
+```{r}
+library(tidyr)
+
+folds %>%
+  mutate(predicted = map2(model, test, ~ augment(.x, newdata = .y))) %>% 
+  unnest(predicted)
+# 同上
+predicted <- folds %>% unnest(map2(model, test, ~ augment(.x, newdata = .y)))
+predicted
+```
+
+对模型结果进行检验
+
+```{r}
+# 计算残差
+predicted <- predicted %>% 
+  mutate(residual = .fitted - mpg)
+
+# 绘图
+library(ggplot2)
+predicted %>%
+  ggplot(aes(mpg, residual)) +
+    geom_hline(yintercept = 0) +
+    geom_point() +
+    stat_smooth(method = "loess") +
+    theme_minimal()
+
+# 分析结果
+rs <- predicted %>%
+  group_by(.id) %>% 
+  summarise(sst = sum((mpg - mean(mpg)) ^ 2), # Sum of Squares Total
+    sse = sum(residual ^ 2),          # Sum of Squares Residual/Error
+    r.squared = 1 - sse / sst         # Proportion of variance accounted for
+    )
+rs
+```
+
+
+```{r}
+# Overall
+mean(rs$r.squared)
+#> [1] 0.616553
+# 根据folds的结果，模型可以解释数据集新测试集的61.66%的方差
+
+rs %>% 
+  ggplot(aes(r.squared, fill  = .id)) +
+    geom_histogram() +
+    geom_vline(aes(xintercept = mean(r.squared)))  # 
+```
+
+
