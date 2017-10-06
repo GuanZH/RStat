@@ -1,0 +1,111 @@
+---
+title: "caret titanic"
+output: html_notebook
+---
+短平快的caret了解
+```{r}
+library(caret)
+
+model.mtcars_lm <- train(mpg ~ wt
+                        ,df.mtcar_train
+                        ,method = "lm"
+                        )
+# 简单的线性模型训练
+coef.icept <- coef(model.mtcars_lm$finalModel)[1]
+coef.slope <- coef(model.mtcars_lm$finalModel)[2]
+获得模型参数
+```
+
+
+
+
+使用caret对titanic数据进行学习预测，数据来自于kaggle
+```{r}
+# install.packages(c("e1071","ipred","xgboost","doSNOW"))
+library(e1071)
+library(ipred)
+library(xgboost)
+library(caret)
+library(doSNOW)
+train <- read.csv("train.csv")
+View(train)
+# 读取数据，对缺失值进行插入Embarked插入最多的S
+table(train$Embarked)
+train$Embarked[train$Embarked==""] <- "S"
+
+# 对age进行处理
+summary(train$Age)
+train$MissingAge <- ifelse(is.na(train$Age), "Y","N")
+
+# 总和家庭成员数量
+train$Familysize <- 1+train$SibSp + train$Parch
+
+# 对变量因子化
+train$Survived <- as.factor(train$Survived)
+train$Pclass <- as.factor(train$Pclass)
+train$Sex <- as.factor(train$Sex)
+train$Embarked <- as.factor(train$Embarked)
+train$MissingAge <- as.factor(train$MissingAge)
+
+# 选取需要的变量
+features <- c("Survived","Pclass","Sex","Age","SibSp","Parch","Fare","Embarked","MissingAge")
+train <- train[,features]
+```
+接下来，把所有的变量特征转化为dummy变量
+```{r}
+dummy.vars <- dummyVars(~.,data=train[,-1])
+train.dummy <- predict(dummy.vars, train[,-1])
+View(train.dummy)
+
+# 使用参考其他变量的办法插入缺失值，而不是用一个众值方法插入
+
+pre.process <- preProcess(train.dummy, method="bagImpute")
+
+Imputed.data <- predict(pre.process, train.dummy)
+View(Imputed.data)
+train$Age <- Imputed.data[,6]
+View(train)
+```
+
+接下来是建立模型的部分，首先对数据进行分割，按照7：3的比例分割训练集和测试集
+
+```{r}
+set.seed(54321)
+indexes <- createDataPartition(train$Survived, times=1, p=0.7, list = FALSE)
+titanic.train <- train[indexes,]
+titanic.test <- train[-indexes,]
+
+prop.table(table(train$Survived))
+prop.table(table(titanic.train$Survived))
+prop.table(table(titanic.test$Survived))
+```
+
+采用caret进行10-fold的CV，重复3次，用grid搜索寻找出最优的模型参数值
+```{r}
+train.control <- trainControl(method="repeatedcv",number=10, repeats = 3, search="grid")
+
+# 这种情况下产生的是30个模型，每个repeats里面都会有10个模型
+```
+grid搜索出xgboost的模型参数值
+```{r}
+tune.grid <- expand.grid(eta = c(0.05,0.075,0.1),
+                         nrounds = c(50.75,100),
+                         max_depth = 6:8,
+                         min_child_weight = c(2.0,2.25,2.5), colsample_bytree = c(0.3,0.4,0.5),gamma=0,subsample =1)
+View(tune.grid)
+
+cl <- makeCluster(2,type="SOCK") # 数字根据计算机能力设置，一般设置小一点
+registerDoSNOW(cl) # 使得caret识别出平行训练的模式
+devtools::install_github('topepo/caret/pkg/caret')
+caret.cv <- train(Survived ~., data=titanic.train,
+                  method = "xgbTree",
+                  tuneGrid = tune.grid,
+                  trControl = train.control)
+stopCluster(cl)
+
+caret.cv
+
+preds <- predict(caret.cv, titanic.test)
+confusionMatrix(preds, titanic.test$Survived)
+```
+
