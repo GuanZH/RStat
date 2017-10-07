@@ -1,2 +1,0 @@
-"0","samplenum=as.vector(table(num))"
-"0","points(k,samplenum,type=""p"",col=2)"

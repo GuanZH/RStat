@@ -1,0 +1,46 @@
+---
+title: "Treat Outlier simple"
+output: html_notebook
+---
+
+
+outlier处理方法
+1：去除outlier
+```{r}
+# 从1到100中，随机取出40个数字，带有放回，做出2个outliers，65和80
+x <- c(sample(x=1:20, size=40, replace = TRUE), 65,80)
+boxplot.stats(x)
+# 显然2个点被显示出来
+
+x1 <- x
+length(x1)
+bench <- 17.75 + 1.5 * IQR(x1) # Q3 + 1.5 * IQR
+# 设置benchmark，用于作为去除outlier的标准
+x1[x1 > bench]
+x1 <- x1[x1 < bench]
+summary(x1)
+boxplot(x1)
+```
+
+2：调整极值
+
+```{r}
+x <- c(sample(x=1:20, size=40, replace = TRUE), 65,80)
+bench <- 17.75 + 1.5 * IQR(x1) # Q3 + 1.5 * IQR
+x[x>bench]
+x[x>bench] <- bench
+# 把超过bench的值全都指定为bench值
+summary(x)
+boxplot(x)
+```
+
+3：变量转化
+```{r}
+x <- c(sample(x=1:20, size=40, replace = TRUE), 65,80)
+summary(x)
+log.x <- log(x)
+summary(log.x)
+boxplot(x)
+boxplot(log.x)
+```
+

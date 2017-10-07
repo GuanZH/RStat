@@ -1,0 +1,145 @@
+---
+title: "Miss data impute from analytic vidhya"
+output: html_notebook
+---
+
+MICE package
+这个包假设缺失值的出现是随机的，意味着缺失值的概率是取决于观察数值，所以可以用于预测。例如，假设一个数据中有x1，到xk，k个缺失值，x1可以和其他变量产生回归关系，所以可以获得线性预测的缺失值。同理，x2的缺失值也可以获得，等等。
+包中的设置还可以设置为logistic 回归（也可以PMM回归，用于数值变量的预测；polyreg回归，用于超过2个水平的因子变量；Proportional odds 模型，用于超过2个水平的有序因子变量），用于预测分类变量，通常可以产生几个数据集，然后整合所有数据集进行建模。
+
+```{r}
+data(iris)
+summary(iris)
+
+# MICE package
+library("mice")
+library("missForest")
+# 随机产生10%的缺失值
+iris.mis <- prodNA(iris,noNA=0.1)
+summary(iris.mis)
+iris.mis <- subset(iris.mis, select = -c(Species))
+summary(iris.mis)
+
+# 观察缺失值分布模式
+md.pattern(iris.mis)
+# 95行没有缺失值
+# 19行中sepal length有缺失值 etc.
+
+library(VIM)
+mice_plot <- aggr(iris.mis, col=c('navyblue','yellow'),
+                  numbers=TRUE,
+                  sortVars=TRUE,
+                  labels = names(iris.mis),
+                  cex.axis=.8,
+                  gap=3,
+                  ylab=c("missing data","pattern"))
+# 图解，67%的数据没有缺失值，19%的缺失值在 sepal length，等等如此
+
+# 接下来插入缺失值
+imputed_Data <- mice(iris.mis,m=5,maxit=5,method='pmm',seed=500) #m=5代表使用5个数据集，maxit=5代表迭代次数，method代表插值方法，这里使用predictive mean matching
+summary(imputed_Data)
+# 检查一下插值结果
+imputed_Data$imp$Sepal.Width
+
+#因为产生了5个数据集，所以可以用complete调出，比如调出第二个数据集
+completeData <- complete(imputed_Data,2)
+summary(iris.mis)
+# 因为产生了5个数据集，如果需要结合所有数据集建立模型，使用with函数
+fit <- with(data=imputed_Data, exp = lm(Sepal.Width~Sepal.Length+Petal.Width))
+combine <- pool(fit)
+summary(combine)
+
+```
+
+
+Amelia package
+该包假设数据集的所有变量为多元正态分布数据（MVN），使用均值和协方差总结数据；缺失值的数据是随机的。
+该包首先采用bootstrap取样，并使用EMB算法处理每个样本。估计均值和协方差会是不同的，最终，分别进行缺失值预测。
+所以这个模型最适用于正态分布的数据。
+
+
+```{r}
+rm(list=ls())
+
+library(Amelia)
+data("iris")
+# 设置10%的缺失值
+iris.mis <- prodNA(iris, noNA = 0.1)
+summary(iris.mis)
+
+#设置amelia参数，m=5代表产生5个插值数据集，noms代表保留名义因子变量
+amelia_fit <- amelia(iris.mis, m=5, parallel = "multicore", noms = "Species")
+amelia_fit$imputations[[1]]
+#将数据集输出
+# write.amelia(amelia_fit, file.stem="imputed_data_set")
+```
+
+
+missForest
+随机森林缺失值，基于随机森林算法预测缺失值，采用非参数法用于各种类型的数据类型。非参数法并不是基于一个确定的函数模型，而是对函数进行估计，使数据预测不会看着不合实际。
+首先，该方法对每个变量建立了随机森林模型，然后用于预测缺失值。该方法产生了OOB(out of bag)估计。而且，提供了对imputation过程的高水平控制处理参数。可以分别返回每个变量的oob。可以帮助我们观察模型对于每个变量的精确度。
+
+```{r}
+rm(list=ls())
+library(missForest)
+data(iris)
+iris.mis <- prodNA(iris, noNA=0.1)
+
+# 插入缺失值，默认设置所有参数
+iris.imp <- missForest(iris.mis)
+
+# 检查插值结果
+iris.imp$ximp
+
+# 检查插值误差
+iris.imp$OOBerror
+
+# NRMSE是正态均方误差，用于表示数值变量结果的误差，PFC（proportion of falsely classified）表示分类变量获得的误差
+
+#与实际数据对比精确度
+iris.err <- mixError(iris.imp$ximp, iris.mis,iris)
+iris.err
+# 结果代表分类变量的预测误差0%，而数值的误差13.6%
+```
+
+Hmisc具有多种功能，对于缺失值插入使用impute函数，可以设置mean，max，median等，默认为median，aregImpute函数允许additive regression, bootstrapping, predictive mean matching方案插值。
+bookstrap方法中，采用bootstrap取样；addtive model使用非参数回归，使用放回的取样方法预测缺失值；默认为predictive mean matching方法。
+```{r}
+rm(list=ls())
+library(Hmisc)
+data(iris)
+iris.mis <- prodNA(iris, noNA=0.1)
+
+# 均值插入
+iris.mis$imputed_age <- with(iris.mis,impute(Sepal.Length, mean))
+# 产生sepal length值，定名字为imputed age，采用均值插入缺失值
+iris.mis$imputed_age2 <- with(iris.mis, impute(Sepal.Length, 'random'))
+# 同上，才用随机值插入
+
+
+impute_arg <- aregImpute(~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width +
+Species, data = iris.mis, n.impute = 5)
+# 采用算法插入，本例子中回归所有变量自动插入，结果中Rsquare越高，对于插入值的预测越好
+impute_arg$imputed$Sepal.Length
+# 变量sepal length的插值结果
+
+                        
+```
+
+mi package
+pmm指的是最接近预测均值的观察值作为插值插入
+mi可以具有图形诊断功能，采用beyesian回归模型处理分化
+```{r}
+rm(list=ls())
+install.packages("mi")
+library(mi)
+data(iris)
+iris.mis <- prodNA(iris, noNA=0.1)
+
+mi_data <- mi(iris.mis, seed=335)
+# 默认设置参数结果 method=bootstrap
+# nimp 多重插值数据集为3
+# niter迭代次数为30
+summary(mi_data)
+```
+

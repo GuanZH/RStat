@@ -18,8 +18,28 @@ table(titanic.full$IsTrainSet)
 titanic.full[titanic.full$Embarked=="","Embarked"] <- "S"
 age.median <- median(titanic.full$Age,na.rm=TRUE)
 titanic.full[is.na(titanic.full$Age),"Age"] <- age.median
-fare.median <- median(titanic.full$Fare,na.rm=TRUE)
-titanic.full[is.na(titanic.full$Fare),"Fare"] <- fare.median
+# fare.median <- median(titanic.full$Fare,na.rm=TRUE)
+# titanic.full[is.na(titanic.full$Fare),"Fare"] <- fare.median
+# 用fare和其他变量的关系线性回归产生插入值
+titanic.full[is.na(titanic.full$Fare),"Fare"]
+upper.whisker <- boxplot.stats(titanic.full$Fare)$stats[5]
+outlier.filter <- titanic.full$Fare < upper.whisker
+titanic.full[outlier.filter,]
+fare.equation = "Fare~Pclass+Sex+Age+SibSp+Parch+Embarked"
+fare.model <- lm(
+    formula=fare.equation,
+    data=titanic.full[outlier.filter,]
+)
+
+fare.row <- titanic.full[
+    is.na(titanic.full$Fare),
+    c("Pclass","Sex","Age","SibSp","Parch","Embarked")
+             ]
+fare.predictions <-  predict(fare.model, newdata=fare.row)
+titanic.full[is.na(titanic.full$Fare),"Fare"] <- fare.predictions
+
+
+
 ```
 
 建立模型

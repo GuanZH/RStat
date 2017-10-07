@@ -14,6 +14,8 @@ K Fold是最常用的CV方法，样本被分为K份，模型采用K-1份数据�
 library("boot")
 require(boot)
 library(MASS)
+
+data(cars)
 plot(speed~dist, data=cars, main = "Cars" ,
 xlab = "Stopping Distance", ylab = "Speed")
 ```
@@ -24,6 +26,13 @@ glm.fit = glm(speed~dist, data=cars)
 degree=1:5
 cv.error5=rep(0,5)
 cv.test = cv.glm(cars, glm.fit, K=5)
+cv.error1 = rep(0,5)
+for(d in degree){
+glm.fit = glm(speed~poly(dist, d), data=cars)
+cv.error1[d] = cv.glm(cars,glm.fit)$delta[1]
+}
+plot(cv.error1~degree)
+cv.error5
 
 for(d in degree){
 glm.fit = glm(speed~poly(dist, d), data=cars)
@@ -151,5 +160,3 @@ rs %>%
     geom_histogram() +
     geom_vline(aes(xintercept = mean(r.squared)))  # 
 ```
-
-

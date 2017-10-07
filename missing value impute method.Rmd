@@ -1,0 +1,90 @@
+---
+title: "Impute missing value simple"
+output: html_notebook
+---
+方法1：利用均值或者众值
+```{r}
+# 给定一个数据集，如何插入缺失值呢
+# 一般的方法是用均值或者众值插入
+
+math <- c(88,95,85,NA,76,69,78,NA,70,68)
+m1 <- math[is.na(math)]
+m2 <- math[!is.na(math)]
+math1 <- math
+math2 <- math
+math1[is.na(math1)] <- mean(m2)
+math2[is.na(math2)] <- median(m2)
+
+math1
+math2
+
+rm(list=ls())
+var1 <- c(19,13,NA,17,5,16,NA,20,18,12,25,12,30,22)
+var2 <- c(49.76682,53.15736,50.19383,48.79405,NA,51.04863,53.56600,51.22467,47.98000,NA,44.58380,50.29183,52.76665,NA)
+
+dat <- data.frame(var1,var2)
+# 这个数据2个变量，均有缺失值
+# var1用均值插入
+dat$var1[is.na(dat$var1)] <- mean(dat$var1[!is.na(dat$var1)])
+# var2用众值插入
+dat$var2[is.na(dat$var2)] <- median(dat$var2[!is.na(dat$var2)])
+
+```
+
+方法2：利用线性回归
+```{r}
+x <- c(1:10)
+y <- c(11,12,18,14,17,NA,NA,19,NA,27)
+z <- c(19,11,2,14,20,4,9,10,18,1)
+w <- c(1,4,7,10,3,5,7,6,6,9)
+dat <- data.frame(x,y,z,w)
+dat
+cor(dat)
+cor(dat,use="complete.obs") #如果数据有缺失值，use可以自动排除掉缺失值
+
+symnum(cor(dat,use="complete.obs"))
+
+Ind <- function(t){
+    x <- dim(length(t))
+    x[which(!is.na(t))] = 1
+    x[which(is.na(t))] = 0
+    return(x)
+}
+dat$I <- Ind(dat$y)
+dat
+
+lm(y~x,data=dat)
+summary(lm(y~x,data=dat))
+
+# y = 9.7432 + 1.509 * x
+
+for (i in 1:nrow(dat)) {
+    if (dat$I[i] == 0) {
+        dat$y[i] = 9.7432 + 1.509 * dat$x[i]
+    }
+}
+
+dat
+```
+
+方法3： KNN 插入
+
+```{r}
+movies <- read.csv("HollywoodsMostProfitableStories.csv")
+str(movies)
+head(movies)
+summary(movies)
+library("VIM")
+movie1 <- kNN(movies, variable=c("Genre","Profitability"), k = 6)
+# 这个方法是自动使用kNN方法插入这2个变量的缺失值
+summary(movie1)
+
+movie2 <- kNN(movies)
+summary(movie2)
+# 没有指定变量的时候，自动完成所有变量的缺失值插入
+
+```
+
+
+
+
