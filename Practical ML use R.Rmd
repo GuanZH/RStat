@@ -1,0 +1,53 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+使用(R进行ML操作)[https://gigadom.wordpress.com/]
+
+$$
+RSS = \sum(y-yhat)^2
+$$
+$$
+TSS = \sum(y-mean(y))^2
+$$
+$$
+Rsquared = 1 - \frac{RSS}{TSS}
+$$
+
+```{r}
+# 数据准备
+df = read.csv("Boston.csv", stringsAsFactors = FALSE)
+# 数据分割
+trainTestSplit <- function(df,trainPercent,seed1){
+    ## Sample size percent
+    samp_size <- floor(trainPercent/100 * nrow(df))
+    ## set the seed 
+    set.seed(seed1)
+    idx <- sample(seq_len(nrow(df)), size = samp_size)
+    idx
+    
+}
+
+train_idx <- trainTestSplit(df,trainPercent = 75, seed = 5)
+train <- df[train_idx, ]
+test <- df[-train_idx,]
+
+fit = lm(medv~lstat, data=df)
+summary(fit)
+
+confint(fit)
+plot(df$lstat, df$medv, xlab="lower status (%)", ylab = "median value")
+
+abline(fit, lwd=3, col="red")
+Rsquared <- function(lmfit,newdf,y){
+    yhat <- predict(lmfit,newdata=newdf)
+    RSS <- sum((y - yhat)^2)
+    TSS <- sum((y - mean(y))^2)
+    rsquared <-1 - (RSS/TSS)
+    rsquared
+}
+rsquared = Rsquared(fit, test, test$medv)
+sprintf("R-squared for uni-variate regression (Boston.csv)  is : %f", rsquared)
+
+```
+
